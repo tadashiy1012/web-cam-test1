@@ -7,16 +7,111 @@
     <title>Document</title>
 </head>
 <body>
-    <h1>Hello!</h1>
-    <video id="video" width="400" height="300" autoplay="1"></video>
+    <div style="display: flex">
+        <video id="local" width="400" height="300" autoplay="1"></video>
+        <video id="remote" width="400" height="300" autoplay="1"></video>
+    </div>
+    <p>
+        <span>SDP send:</span>
+        <button id="generateBtn">generate sdp</button>
+        <button id="copyBtn">copy</button>
+        <br />
+        <textarea id="sendTxt" rows="5" cols="60" readonly="readonly"></textarea>
+    </p>
+    <p>
+        <span>SDP receive:</span>
+        <button id="receiveBtn">Receive remote SDP</button><br />
+        <textarea id="receiveTxt" rows="5" cols="60"></textarea>
+    </p>
     <script>
-        const video = document.getElementById('video');
-        navigator.mediaDevices.getUserMedia({video: true, audio: false}).then((stream) => {
-            console.log(stream);
-            video.srcObject = stream;
-        }).catch((err) => {
-            console.log(err);
-        });
+        const btnA = document.getElementById('generateBtn');
+        const btnB = document.getElementById('receiveBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const local = document.getElementById('local');
+        const remote = document.getElementById('remote');
+        const send = document.getElementById('sendTxt');
+        const receive = document.getElementById('receiveTxt');
+        function newConn(initFlg) {
+            return new Promise((resolve, reject) => {
+                const conn = new RTCPeerConnection();
+                conn.onnegotiationneeded = async (ev) => {
+                    console.log(ev);
+                    try {
+                        if (initFlg) {
+                            await conn.setLocalDescription(await conn.createOffer());
+                        }
+                        resolve(conn);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                conn.onicecandidate = (ev) => {
+                    console.log(ev);
+                    if (ev.candidate === null) {
+                        send.value = conn.localDescription.sdp;
+                    }
+                };
+                conn.ontrack = (ev) => {
+                    console.log(ev);
+                    remote.srcObject = ev.streams[0];
+                    ev.track.onended = () => {
+                        remote.srcObject = remote.srcObject;
+                    }
+                };
+                (async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: false
+                        });
+                        for (const track of stream.getTracks()) {
+                            conn.addTrack(track, stream);
+                        }
+                        local.srcObject = stream;
+                    } catch (error) {
+                        console.error(error);
+                    }
+                })();
+            });
+        }
+        (() => {
+            let pc;
+            btnA.onclick = async () => {
+                try {
+                    pc = await newConn(true);
+                } catch (error) {
+                    console.error(error);
+                }
+            };
+            btnB.onclick = async () => {
+                try {
+                    const value = receive.value;
+                    if (pc) {
+                        const answer = new RTCSessionDescription({
+                            type: 'answer',
+                            sdp: value
+                        });
+                        await pc.setRemoteDescription(answer);
+                    } else {
+                        pc = await newConn(false);
+                        const offer = new RTCSessionDescription({
+                            type: 'offer',
+                            sdp: value
+                        });
+                        await pc.setRemoteDescription(offer);
+                        await pc.setLocalDescription(await pc.createAnswer());
+                        send.value = pc.localDescription.sdp;
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+            };
+            copyBtn.onclick = () => {
+                send.focus();
+                send.select();
+                document.execCommand('copy');
+            };
+        })();
     </script>
 </body>
 </html>
