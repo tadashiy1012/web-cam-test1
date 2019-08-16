@@ -18,8 +18,10 @@
             for (const track of stream.getTracks()) {
                 pc.addTrack(track, stream);
             }
-            return pc.createOffer();
-        }).then((offer) => {
+        }).catch((err) => {
+            console.log(err);
+        });
+        pc.createOffer().then((offer) => {
             return pc.setLocalDescription(offer);
         }).then(() => {
             console.log(pc.localDescription);
