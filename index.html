@@ -11,9 +11,18 @@
     <video id="video" width="400" height="300" autoplay="1"></video>
     <script>
         const video = document.getElementById('video');
+        const pc = new RTCPeerConnection();
         navigator.mediaDevices.getUserMedia({video: true, audio: false}).then((stream) => {
             console.log(stream);
             video.srcObject = stream;
+            for (const track of stream.getTracks()) {
+                pc.addTrack(track, stream);
+            }
+            return pc.createOffer();
+        }).then((offer) => {
+            return pc.setLocalDescription(offer);
+        }).then(() => {
+            console.log(pc.localDescription);
         }).catch((err) => {
             console.log(err);
         });
